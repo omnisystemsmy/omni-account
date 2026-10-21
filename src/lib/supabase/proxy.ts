@@ -29,7 +29,10 @@ export async function updateSession(request: NextRequest) {
     to.search = `?next=${encodeURIComponent(path)}`;
     return NextResponse.redirect(to);
   }
-  if (data.user && AUTH_PAGES.includes(path)) {
+  // /sign-in?email=... or ?add=1 is the "switch / add account" flow and must stay reachable while signed in.
+  const q = request.nextUrl.searchParams;
+  const switching = path === "/sign-in" && (q.has("email") || q.get("add") === "1");
+  if (data.user && AUTH_PAGES.includes(path) && !switching) {
     const to = request.nextUrl.clone();
     to.pathname = "/account";
     to.search = "";

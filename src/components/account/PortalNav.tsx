@@ -4,8 +4,14 @@ import { usePathname } from "next/navigation";
 
 const ITEMS = [
   { href: "/account", label: "Overview" },
-  { href: "/account/profile", label: "Profile" },
-  { href: "/account/security", label: "Security" },
+  { href: "/account/personal", label: "Personal information" },
+  { href: "/account/profile", label: "Profile & appearance" },
+  { href: "/account/security", label: "Sign-in & security" },
+  { href: "/account/sessions", label: "Active sessions" },
+  { href: "/account/activity", label: "Security activity" },
+  { href: "/account/apps", label: "Connected apps" },
+  { href: "/account/preferences", label: "Preferences" },
+  { href: "/account/privacy", label: "Privacy & data" },
   { href: "/account/manage", label: "Account management" },
 ];
 

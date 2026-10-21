@@ -1,20 +1,22 @@
 "use client";
+import Link from "next/link";
 import { useState, type FormEvent } from "react";
-import { changePassword, signOut } from "@/lib/auth/actions";
+import { changePassword, sendRecoveryEmail } from "@/lib/auth/actions";
 import { validateNewPassword } from "@/lib/auth/validation";
 import { Banner, Button, PasswordField, StrengthMeter } from "@/components/ui/controls";
+import { StatusBadge, useToast } from "@/components/ui/primitives";
 
 type Status = { kind: "success" | "error"; text: string } | null;
 
-export function SecurityPanel({ email }: { email: string }) {
+export function SecurityPanel({ email, verified }: { email: string; verified: boolean }) {
+  const toast = useToast();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const [status, setStatus] = useState<Status>(null);
   const [busy, setBusy] = useState(false);
-  const [others, setOthers] = useState<Status>(null);
-  const [othersBusy, setOthersBusy] = useState(false);
+  const [mailBusy, setMailBusy] = useState(false);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -30,23 +32,33 @@ export function SecurityPanel({ email }: { email: string }) {
     const res = await changePassword(email, current, next);
     setBusy(false);
     if (res.ok) {
-      setStatus({ kind: "success", text: "Password updated." });
+      toast("success", "Password updated.");
       setCurrent(""); setNext(""); setConfirm("");
     } else setStatus({ kind: "error", text: res.error });
   }
 
-  async function signOutOthers() {
-    setOthers(null);
-    setOthersBusy(true);
-    const res = await signOut("others");
-    setOthersBusy(false);
-    setOthers(res.ok
-      ? { kind: "success", text: "Signed out of all other devices." }
-      : { kind: "error", text: res.error });
+  async function sendReset() {
+    setMailBusy(true);
+    const res = await sendRecoveryEmail(email);
+    setMailBusy(false);
+    toast(res.ok ? "success" : "error", res.ok ? `Reset email sent to ${email}.` : res.error);
   }
 
   return (
     <>
+      <section className="card" aria-labelledby="ver">
+        <h2 id="ver">Sign-in method</h2>
+        <dl className="kv">
+          <div><dt>Email</dt><dd>{email}</dd></div>
+          <div><dt>Email status</dt><dd><StatusBadge tone={verified ? "ok" : "warn"}>{verified ? "Verified" : "Not verified"}</StatusBadge></dd></div>
+          <div><dt>Password</dt><dd>Set</dd></div>
+          <div><dt>Two-step verification</dt><dd><StatusBadge tone="muted">Not available yet</StatusBadge></dd></div>
+        </dl>
+        <p className="field-hint" style={{ marginTop: 12 }}>
+          To change your email address, go to <Link href="/account/personal">Personal information</Link>.
+        </p>
+      </section>
+
       <form className="card" onSubmit={onSubmit} noValidate>
         <h2>Change password</h2>
         <div className="stack">
@@ -64,12 +76,12 @@ export function SecurityPanel({ email }: { email: string }) {
           <Button type="submit" inline loading={busy}>Update password</Button>
         </div>
       </form>
-      <section className="card">
-        <h2>Sessions</h2>
-        <p className="page-sub">Sign out everywhere except this browser, for example if you lost a device.</p>
+
+      <section className="card" aria-labelledby="rec">
+        <h2 id="rec">Password recovery</h2>
+        <p className="page-sub">Forgot your current password? We can email a reset link to {email}.</p>
         <div className="stack">
-          {others ? <Banner kind={others.kind}>{others.text}</Banner> : null}
-          <Button variant="outline" inline onClick={signOutOthers} loading={othersBusy}>Sign out other devices</Button>
+          <Button variant="outline" inline onClick={sendReset} loading={mailBusy}>Email me a reset link</Button>
         </div>
       </section>
     </>

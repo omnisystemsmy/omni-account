@@ -1,12 +1,14 @@
 /**
- * Text wordmark. No official Omni Account logo exists in the Omni repos (the
- * available logos are Omni Tools / Omni Docs), so we do not borrow one.
+ * Official Omni Account logo. Both variants are rendered and CSS shows the one
+ * that matches the active theme, so there is no flash on first paint.
  */
 export function Brand() {
   return (
-    <span className="brand">
-      <span className="brand-mark" aria-hidden="true" />
-      <span className="brand-text">Omni <strong>Account</strong></span>
+    <span className="brand" role="img" aria-label="Omni Account">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img className="logo-light" src="/brand/logo-black.png" alt="" width={640} height={111} />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img className="logo-dark" src="/brand/logo-white.png" alt="" width={640} height={111} />
     </span>
   );
 }

@@ -1,9 +1,11 @@
 import type { ReactNode } from "react";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { Brand } from "@/components/ui/Brand";
 
 export function AuthShell({ children }: { children: ReactNode }) {
   return (
     <main className="auth-shell">
+      <div className="auth-theme"><ThemeToggle /></div>
       <div className="auth-brand">
         <Brand />
       </div>

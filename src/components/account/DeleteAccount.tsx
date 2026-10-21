@@ -2,9 +2,10 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { signOut } from "@/lib/auth/actions";
+import { loadRemembered, removeAccount, saveRemembered } from "@/lib/accounts/remembered";
 import { Banner, Button, PasswordField } from "@/components/ui/controls";
 
-export function DeleteAccount() {
+export function DeleteAccount({ userId }: { userId: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
@@ -27,6 +28,7 @@ export function DeleteAccount() {
         setBusy(false);
         return setError(body.error ?? "Could not delete the account. Please try again.");
       }
+      saveRemembered(removeAccount(loadRemembered(), userId));
       await signOut("local");
       router.replace("/sign-in?notice=deleted");
       router.refresh();

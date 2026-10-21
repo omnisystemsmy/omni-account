@@ -15,13 +15,13 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Follows the OS theme, mirroring the apps' light/dark themes. */}
+        {/* Saved choice wins; otherwise follow the OS theme. Runs before paint. */}
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "try{if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.dataset.theme='dark'}catch(e){}",
+              "try{var t=localStorage.getItem('omni-theme');if(t!=='light'&&t!=='dark')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme='light'}",
           }}
         />
       </head>

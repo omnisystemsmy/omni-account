@@ -1,14 +1,18 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
 import { resendVerification, signIn } from "@/lib/auth/actions";
 import { validateEmail } from "@/lib/auth/validation";
+import { initials, loadRemembered } from "@/lib/accounts/remembered";
 import { Banner, Button, Field, PasswordField } from "@/components/ui/controls";
 
-export function SignInForm({ next, notice }: { next: string; notice?: string }) {
+export function SignInForm({
+  next, notice, noticeKey, email: presetEmail, add,
+}: { next: string; notice?: string; noticeKey?: string; email?: string; add?: boolean }) {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const locked = !!presetEmail;
+  const [email, setEmail] = useState(presetEmail ?? "");
   const [password, setPassword] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passError, setPassError] = useState<string | null>(null);
@@ -16,6 +20,23 @@ export function SignInForm({ next, notice }: { next: string; notice?: string }) 
   const [unverified, setUnverified] = useState(false);
   const [info, setInfo] = useState<string | null>(notice ?? null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const list = loadRemembered();
+    if (!locked && !add && list.length > 0) {
+      // Returning visitor: offer the account chooser instead of an empty form.
+      const q = new URLSearchParams({ next });
+      if (noticeKey) q.set("notice", noticeKey);
+      router.replace(`/choose-account?${q}`);
+    }
+  }, [locked, add, next, noticeKey, router]);
+
+  // Display name of the remembered account (client-only; empty during SSR).
+  const rememberedName = useSyncExternalStore(
+    () => () => {},
+    () => (presetEmail ? loadRemembered().find((a) => a.email.toLowerCase() === presetEmail.toLowerCase())?.name ?? "" : ""),
+    () => "",
+  );
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -52,8 +73,10 @@ export function SignInForm({ next, notice }: { next: string; notice?: string }) 
 
   return (
     <>
-      <h1 className="auth-title">Sign in</h1>
-      <p className="auth-sub">Use your Omni Account to continue.</p>
+      <h1 className="auth-title">{locked ? "Welcome back" : add ? "Add another account" : "Sign in"}</h1>
+      <p className="auth-sub">
+        {locked ? "Enter your password to continue." : add ? "Sign in with another Omni Account. This replaces the account signed in on this device." : "Use your Omni Account to continue."}
+      </p>
       <form className="stack" onSubmit={onSubmit} noValidate>
         {info ? <Banner kind="success">{info}</Banner> : null}
         {error ? <Banner kind="error">{error}</Banner> : null}
@@ -62,9 +85,20 @@ export function SignInForm({ next, notice }: { next: string; notice?: string }) 
             Resend confirmation email
           </Button>
         ) : null}
-        <Field label="Email" type="email" autoComplete="email" inputMode="email" value={email}
-          onChange={(e) => setEmail(e.target.value)} error={emailError} placeholder="you@example.com" />
-        <PasswordField label="Password" autoComplete="current-password" value={password}
+        {locked ? (
+          <div className="acct-chip">
+            <span className="acct-avatar" aria-hidden="true">{initials(rememberedName, email)}</span>
+            <span className="acct-info">
+              {rememberedName ? <span className="acct-name">{rememberedName}</span> : null}
+              <span className="acct-email">{email}</span>
+            </span>
+            <Link href={`/choose-account?next=${encodeURIComponent(next)}`}>Change</Link>
+          </div>
+        ) : (
+          <Field label="Email" type="email" autoComplete="email" inputMode="email" value={email}
+            onChange={(e) => setEmail(e.target.value)} error={emailError} placeholder="you@example.com" />
+        )}
+        <PasswordField label="Password" autoComplete="current-password" autoFocus={locked} value={password}
           onChange={(e) => setPassword(e.target.value)} error={passError} />
         <div style={{ textAlign: "right", marginTop: -6 }}>
           <Link href="/forgot-password">Forgot password?</Link>

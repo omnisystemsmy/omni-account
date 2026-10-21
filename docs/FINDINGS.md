@@ -42,3 +42,9 @@ Same Supabase project ⇒ **shared identity** (same `auth.users.id`, same creden
 
 ## Verification status
 Typecheck, lint, 4 unit tests, production build: pass. UI rendered and checked at desktop/mobile, light/dark; client validation and route guarding (`/account` → `/sign-in?next=…`, bad callback → `/auth/error`) verified. **Not tested end-to-end:** registration, email verification, sign-in, reset, password change, delete — they need a real mailbox and would create/modify accounts in the shared live Supabase project, which I did not do without your say-so.
+
+## Identity platform update (2026-10-21)
+- **Storage model:** no new tables. Profile fields live in `auth.users.user_metadata` (`display_name`, `profile{}`, `preferences{}`, `avatar_path`), which only the signed-in user can write for themselves. Existing keys (`display_name`) are untouched, so Omni Tools is unaffected.
+- **Avatars:** private `avatars` bucket, one folder per user id, signed URLs, 2 MB / image-only limits. Requires applying `supabase/migrations/20261021000000_avatars_bucket.sql` (not applied automatically). Until then uploads show "Profile pictures are not set up yet".
+- **Not implemented on purpose:** two-step verification (needs MFA enabled in the project and a verified flow), device/IP session list (Supabase exposes none), per-user connected-app status (no verifiable integrations), notification settings, phone verification.
+- **Export** covers Omni Account data only. **Delete** removes avatar files, then calls the existing Edge Function; it does not delete data inside other Omni apps.

@@ -1,6 +1,8 @@
 "use client";
 import { createClient } from "@/lib/supabase/client";
 import { authMessage } from "./errors";
+import { readAvatarPath, readPreferences, readProfile } from "@/lib/account/meta";
+import type { Preferences, Profile } from "@/lib/profile/schema";
 
 /** UI components call these; they never touch the Supabase SDK directly. */
 export type Result<T = void> = { ok: true; data: T } | { ok: false; error: string };
@@ -121,4 +123,116 @@ export async function signOut(scope: "global" | "local" | "others" = "local"): P
 export async function hasRecoverySession(): Promise<boolean> {
   const { data } = await createClient().auth.getUser();
   return !!data.user;
+}
+
+/* ------------------------------------------------------------------ */
+/* Profile, preferences, email and avatar (all scoped to the signed-in user by Supabase) */
+
+
+async function freshUser() {
+  const { data, error } = await createClient().auth.getUser();
+  if (error || !data.user) throw Object.assign(new Error("session"), { code: "session_expired" });
+  return data.user;
+}
+
+/** Merges only the changed profile fields into the stored object; untouched data is preserved. */
+export async function saveProfile(patch: Partial<Profile>, displayName?: string): Promise<Result> {
+  try {
+    const user = await freshUser();
+    const data: Record<string, unknown> = { profile: { ...readProfile(user), ...patch } };
+    if (displayName !== undefined) data.display_name = displayName.trim();
+    const { error } = await createClient().auth.updateUser({ data });
+    return error ? fail(error) : ok(undefined);
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+export async function savePreferences(patch: Partial<Preferences>): Promise<Result> {
+  try {
+    const user = await freshUser();
+    const { error } = await createClient().auth.updateUser({ data: { preferences: { ...readPreferences(user), ...patch } } });
+    return error ? fail(error) : ok(undefined);
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Email changes go through Supabase's confirmation flow; the address only changes after the link is opened. */
+export async function requestEmailChange(currentEmail: string, password: string, newEmail: string): Promise<Result> {
+  const check = await signIn(currentEmail, password);
+  if (!check.ok) return { ok: false, error: "Your password is not correct." };
+  try {
+    const { error } = await createClient().auth.updateUser(
+      { email: newEmail.trim() },
+      { emailRedirectTo: `${siteUrl()}/auth/callback?next=/account/personal` },
+    );
+    return error ? fail(error) : ok(undefined);
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+export async function sendRecoveryEmail(email: string): Promise<Result> {
+  return requestPasswordReset(email);
+}
+
+export type SessionInfo = { signedInAt: string | null; expiresAt: number | null };
+export async function getSessionInfo(): Promise<SessionInfo> {
+  const supabase = createClient();
+  const [{ data: s }, { data: u }] = await Promise.all([supabase.auth.getSession(), supabase.auth.getUser()]);
+  return { signedInAt: u.user?.last_sign_in_at ?? null, expiresAt: s.session?.expires_at ?? null };
+}
+
+const BUCKET = "avatars";
+
+async function toAvatarBlob(file: File): Promise<Blob> {
+  const bitmap = await createImageBitmap(file);
+  const size = 512;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("canvas");
+  const side = Math.min(bitmap.width, bitmap.height);
+  ctx.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, size, size);
+  const blob: Blob | null = await new Promise((r) => canvas.toBlob(r, "image/webp", 0.85));
+  if (!blob) throw new Error("encode");
+  return blob; // re-encoding also strips EXIF/location metadata
+}
+
+export async function uploadAvatar(file: File): Promise<Result<{ path: string }>> {
+  try {
+    const user = await freshUser();
+    const old = readAvatarPath(user);
+    const blob = await toAvatarBlob(file);
+    const path = `${user.id}/avatar-${Date.now()}.webp`;
+    const storage = createClient().storage.from(BUCKET);
+    const up = await storage.upload(path, blob, { contentType: "image/webp", upsert: false });
+    if (up.error) {
+      const missing = /bucket not found/i.test(up.error.message);
+      return { ok: false, error: missing ? "Profile pictures are not set up yet. Please contact support." : "Could not upload the picture. Please try again." };
+    }
+    const { error } = await createClient().auth.updateUser({ data: { avatar_path: path } });
+    if (error) {
+      await storage.remove([path]); // do not leave an orphan
+      return fail(error);
+    }
+    if (old && old !== path) await storage.remove([old]);
+    return ok({ path });
+  } catch {
+    return { ok: false, error: "That image could not be processed. Try a different one." };
+  }
+}
+
+export async function removeAvatar(): Promise<Result> {
+  try {
+    const user = await freshUser();
+    const old = readAvatarPath(user);
+    const { error } = await createClient().auth.updateUser({ data: { avatar_path: null } });
+    if (error) return fail(error);
+    if (old) await createClient().storage.from(BUCKET).remove([old]);
+    return ok(undefined);
+  } catch (e) {
+    return fail(e);
+  }
 }

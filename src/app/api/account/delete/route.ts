@@ -32,6 +32,12 @@ export async function POST(request: Request) {
   const token = sessionData.session?.access_token;
   if (!token) return NextResponse.json({ error: "Please sign in again to do this." }, { status: 401 });
 
+  // Remove the user's avatar files first (their own token; storage policy allows own folder only).
+  const folder = await supabase.storage.from("avatars").list(user.id);
+  if (folder.data?.length) {
+    await supabase.storage.from("avatars").remove(folder.data.map((f) => `${user.id}/${f.name}`));
+  }
+
   const res = await fetch(`${url}/functions/v1/delete-account`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, apikey: key },

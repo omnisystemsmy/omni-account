@@ -1,19 +1,16 @@
 import type { Metadata } from "next";
 import { SecurityPanel } from "@/components/account/SecurityPanel";
-import { createClient } from "@/lib/supabase/server";
+import { PageHeader } from "@/components/ui/primitives";
+import { getAccount } from "@/lib/account/data";
 
-export const metadata: Metadata = { title: "Security" };
+export const metadata: Metadata = { title: "Sign-in & security" };
 
 export default async function SecurityPage() {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
+  const { user } = await getAccount();
   return (
     <>
-      <div>
-        <h1 className="page-title">Security</h1>
-        <p className="page-sub">Keep your Omni Account protected.</p>
-      </div>
-      <SecurityPanel email={data.user?.email ?? ""} />
+      <PageHeader title="Sign-in & security" description="Keep your Omni Account protected." />
+      <SecurityPanel email={user.email ?? ""} verified={!!user.email_confirmed_at} />
     </>
   );
 }
